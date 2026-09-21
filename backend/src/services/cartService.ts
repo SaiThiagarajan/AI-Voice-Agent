@@ -132,9 +132,22 @@ export function updateCartQuantity(customerId: string, productId: string, quanti
   return { ok: true, cart: recalcTotals(cart) };
 }
 
-export type RemoveFromCartResult = { ok: true; cart: Cart } | { ok: false; error: "PRODUCT_NOT_IN_CART" };
+export type RemoveFromCartResult =
+  | { ok: true; cart: Cart }
+  | { ok: false; error: "PRODUCT_NOT_IN_CART" | "INVALID_QUANTITY" };
 
+/**
+ * `qty` must be a finite positive number when provided — otherwise (e.g. a
+ * negative or NaN value from a malformed tool call) `qty >= existingQty`
+ * would evaluate to `false` and fall through to `existingQty -= qty`, which
+ * for a negative `qty` INCREASES the cart line instead of removing from it.
+ * Mirrors the same guard already enforced by addToCart/updateCartQuantity.
+ */
 export function removeFromCart(customerId: string, productId: string, qty?: number): RemoveFromCartResult {
+  if (qty !== undefined && (!Number.isFinite(qty) || qty <= 0)) {
+    return { ok: false, error: "INVALID_QUANTITY" };
+  }
+
   const cart = getOrCreateCart(customerId);
   const idx = cart.items.findIndex((i) => i.productId === productId);
   if (idx === -1) return { ok: false, error: "PRODUCT_NOT_IN_CART" };
