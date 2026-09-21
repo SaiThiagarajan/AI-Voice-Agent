@@ -85,6 +85,24 @@ test("TEST 2: 'Actually make that 3 kilos.' -> cart = 3 (not 5, not another 2 or
   assert.match(finalText, /\b3\b/);
 });
 
+// TEST 2b — regression: "change the X to Y" (product restated, no "that"/"it"
+// pronoun) was NOT recognized as a correction — detectUtteranceIntent had no
+// marker for it, so it fell through to a fresh add_to_cart search for "rice",
+// which is ambiguous in the catalog (Basmati/Sona Masoori/Brown/Idli) and
+// wrongly asked the customer to disambiguate instead of updating the cart.
+test("TEST 2b: 'Change the rice to 3 kilos.' -> cart = 3, not an ambiguous-product clarification", async () => {
+  const customerId = uniqueCustomerId("t2b");
+  await runTurn("I need 2 kilos of basmati rice.", "en", customerId);
+  assert.equal(cartQty(customerId), 2);
+
+  const { toolCalls, finalText } = await runTurn("Change the rice to 3 kilos.", "en", customerId);
+
+  assert.equal(cartQty(customerId), 3, "final cart quantity must be exactly 3");
+  assert.ok(!toolCalls.includes("add_to_cart"), "a correction must never call add_to_cart");
+  assert.ok(toolCalls.includes("update_cart_quantity"), "a correction must use update_cart_quantity");
+  assert.match(finalText, /\b3\b/);
+});
+
 // TEST 3
 test("TEST 3: 'Actually make that 5 kilos.' -> cart = 5", async () => {
   const customerId = uniqueCustomerId("t3");
