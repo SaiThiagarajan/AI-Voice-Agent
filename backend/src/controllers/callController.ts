@@ -26,7 +26,8 @@ export async function simulateCallHandler(req: FastifyRequest<{ Body: SimulateCa
 
   try {
     const result = await callService.createCall(customerId, language, fromNumber);
-    return reply.send({ success: true, call: result.ok ? result.call : undefined });
+    if (!result.ok) return reply.status(400).send({ success: false, error: result.error });
+    return reply.send({ success: true, call: result.call });
   } catch (err) {
     req.log.error({ err: sanitizeError(err) }, "call simulation failed");
     return reply.status(502).send({ success: false, error: "The telephony provider is temporarily unavailable. Please try again." });
