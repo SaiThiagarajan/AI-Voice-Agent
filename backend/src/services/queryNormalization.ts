@@ -271,7 +271,7 @@ const CORRECTION_MARKERS = [
   "actually", "make that", "make it", "change that to", "change it to", "instead",
   "i only want", "i just want", "increase it to", "decrease it to", "increase to",
   "decrease to", "update that to", "update it to", "correct that to", "actually give me",
-  "actually i want", "make the",
+  "actually i want", "make the", "change the", "update the",
   // Hindi
   "असल में", "बदल", "कर दो",
   // Tamil
