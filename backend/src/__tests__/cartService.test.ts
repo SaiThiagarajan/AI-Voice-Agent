@@ -138,6 +138,53 @@ test("PRODUCT_NOT_FOUND is returned for an unknown product id", () => {
   if (!result.ok) assert.equal(result.error, "PRODUCT_NOT_FOUND");
 });
 
+// BUG 5 — removeFromCart must reject a negative/non-finite qty instead of
+// silently falling through to `existingQty -= qty`, which for a negative
+// value INCREASES the cart line rather than removing from it.
+
+test("BUG 5: remove_from_cart rejects a negative quantity instead of increasing the line", () => {
+  const product = anyInStockProduct();
+  const customerId = uniqueCustomerId("remove-negative-qty");
+
+  const added = cartService.addToCart(customerId, product.id, Math.min(2, product.stock));
+  assert.equal(added.ok, true);
+  if (!added.ok) return;
+  const qtyBefore = added.cart.items.find((i) => i.productId === product.id)!.qty;
+
+  const result = cartService.removeFromCart(customerId, product.id, -5);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error, "INVALID_QUANTITY");
+
+  const after = cartService.getCart(customerId);
+  const item = after.items.find((i) => i.productId === product.id);
+  assert.ok(item, "the cart line must be untouched, not removed or mutated");
+  assert.equal(item!.qty, qtyBefore, "a rejected remove must leave the quantity exactly as it was");
+});
+
+test("BUG 5: remove_from_cart rejects a NaN quantity", () => {
+  const product = anyInStockProduct();
+  const customerId = uniqueCustomerId("remove-nan-qty");
+
+  const added = cartService.addToCart(customerId, product.id, 1);
+  assert.equal(added.ok, true);
+
+  const result = cartService.removeFromCart(customerId, product.id, NaN);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error, "INVALID_QUANTITY");
+});
+
+test("BUG 5: remove_from_cart rejects a zero quantity (use omit-qty to remove the whole line instead)", () => {
+  const product = anyInStockProduct();
+  const customerId = uniqueCustomerId("remove-zero-qty");
+
+  const added = cartService.addToCart(customerId, product.id, 1);
+  assert.equal(added.ok, true);
+
+  const result = cartService.removeFromCart(customerId, product.id, 0);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error, "INVALID_QUANTITY");
+});
+
 // Regression: existing cart flows must keep working.
 
 test("regression: get_cart, add, remove all still work end to end", () => {
