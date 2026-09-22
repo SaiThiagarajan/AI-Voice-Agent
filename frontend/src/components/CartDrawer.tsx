@@ -5,8 +5,25 @@ import { CheckoutModal } from "./CheckoutModal";
 export function CartDrawer() {
   const { cart, isCartOpen, closeCart, removeFromCart, addToCart } = useCart();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [pendingProductId, setPendingProductId] = useState<string | null>(null);
+  const [itemError, setItemError] = useState<{ productId: string; message: string } | null>(null);
 
   if (!isCartOpen) return null;
+
+  const adjustQuantity = async (productId: string, delta: 1 | -1) => {
+    setPendingProductId(productId);
+    setItemError(null);
+    try {
+      if (delta === 1) await addToCart(productId, 1);
+      else await removeFromCart(productId, 1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Couldn't update quantity";
+      setItemError({ productId, message });
+      setTimeout(() => setItemError(null), 4000);
+    } finally {
+      setPendingProductId(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Shopping cart">
@@ -40,21 +57,28 @@ export function CartDrawer() {
                     </div>
                     <div className="mt-1.5 flex items-center gap-2">
                       <button
-                        onClick={() => removeFromCart(item.productId, 1)}
+                        onClick={() => adjustQuantity(item.productId, -1)}
+                        disabled={pendingProductId === item.productId}
                         aria-label={`Decrease quantity of ${item.name}`}
-                        className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition hover:bg-brand-100"
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition hover:bg-brand-100 disabled:opacity-50"
                       >
                         −
                       </button>
                       <span className="w-4 text-center text-sm font-semibold">{item.qty}</span>
                       <button
-                        onClick={() => addToCart(item.productId, 1)}
+                        onClick={() => adjustQuantity(item.productId, 1)}
+                        disabled={pendingProductId === item.productId}
                         aria-label={`Increase quantity of ${item.name}`}
-                        className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition hover:bg-brand-100"
+                        className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition hover:bg-brand-100 disabled:opacity-50"
                       >
                         +
                       </button>
                     </div>
+                    {itemError && itemError.productId === item.productId && (
+                      <p className="mt-1 text-[11px] font-medium text-red-600" role="alert">
+                        {itemError.message}
+                      </p>
+                    )}
                   </div>
                   <div className="text-sm font-bold text-gray-900">₹{item.lineTotal}</div>
                 </li>
