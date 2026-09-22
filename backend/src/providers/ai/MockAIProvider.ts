@@ -2,7 +2,7 @@ import { AIChatRequest, AIChatResponse, AIMessage, AIProvider, AIToolCallRequest
 import { PHRASES } from "../../services/localization.js";
 import { computePacksNeeded, detectUtteranceIntent, normalizeShoppingIntent } from "../../services/queryNormalization.js";
 import { SupportedLanguageCode } from "../../types/language.js";
-import { ConversationContext, PendingClarification } from "../../types/conversation.js";
+import { ConversationContext, PendingClarification, PendingConfirmation } from "../../types/conversation.js";
 
 /**
  * Rule-based fallback provider used when OPENAI_API_KEY is not configured.
@@ -377,6 +377,19 @@ function looksLikeCompetingIntent(rawText: string): boolean {
   return ui === "quantity_correction" || ui === "remove_item" || ui === "cart_query" || ui === "price_query" || ui === "inventory_query";
 }
 
+/**
+ * True only if this turn's FIRST tool exchange really is the pending
+ * confirmation's own check_inventory call for the SAME product —
+ * `purchaseTail` always requests check_inventory before add_to_cart, so
+ * that's the only exchange a genuine continuation could start with. Guards
+ * against misreading a totally unrelated tool result (e.g. create_order
+ * from "checkout") as belonging to a stale confirmation — see the caller.
+ */
+function isConfirmationContinuation(exchanges: ToolExchange[], pc: PendingConfirmation): boolean {
+  const first = exchanges[0];
+  return !!first && first.name === "check_inventory" && first.args?.productId === pc.productId;
+}
+
 export class MockAIProvider implements AIProvider {
   readonly name = "mock";
 
@@ -395,7 +408,24 @@ export class MockAIProvider implements AIProvider {
 
     // Highest priority: a pending yes/no confirmation (e.g. "only 3 available,
     // want 3 instead?"). A reply that isn't recognizably yes/no falls through
-    // to normal handling, leaving the confirmation pending for later.
+    // to normal handling below, abandoning the confirmation.
+    //
+    // The `else` branch below (exchanges.length > 0) only resumes the
+    // confirmation's OWN check_inventory/add_to_cart pipeline when the
+    // FIRST exchange this turn actually IS that pipeline's check_inventory
+    // call for the pending product — never just because *some* tool ran.
+    // Without that check, a stale confirmation left over from an earlier
+    // turn (never answered yes/no, because the customer instead said
+    // something unrelated like "checkout") would still be sitting in
+    // session.context on the next turn. Since aiService builds this turn's
+    // system-prompt CONTEXT_JSON once before its tool-calling loop starts,
+    // EVERY chat() call within that turn re-reads the same stale
+    // pendingConfirmation — so once "checkout" (handled below) triggers
+    // create_order, the NEXT chat() call in that same loop would otherwise
+    // misread create_order's result as the confirmation's check_inventory
+    // result (parsed as `{available: undefined}` -> "insufficient stock",
+    // stock 0) instead of reporting the order that was actually just
+    // placed.
     if (context.pendingConfirmation) {
       if (exchanges.length === 0) {
         const yn = detectYesNo(rawText);
@@ -408,12 +438,19 @@ export class MockAIProvider implements AIProvider {
           if (tail.kind === "tool") return respondWithTool(tail.name, tail.args);
           return responseForTerminal(tail, phrases);
         }
-      } else {
+        // yn === null: not a recognizable yes/no reply. Fall through to
+        // normal handling below — the confirmation is abandoned in favor
+        // of whatever this utterance actually asks for.
+      } else if (isConfirmationContinuation(exchanges, context.pendingConfirmation)) {
         const pc = context.pendingConfirmation;
         const tail = purchaseTail(new ExchangeCursor(exchanges), pc.productId, pc.productName, pc.qty);
         if (tail.kind === "tool") return respondWithTool(tail.name, tail.args);
         return responseForTerminal(tail, phrases);
       }
+      // else: exchanges exist this turn, but they belong to a different,
+      // unrelated intent (e.g. create_order from "checkout") — fall
+      // through to normal handling using those same exchanges, exactly as
+      // if there had been no pending confirmation at all.
     }
 
     // Next: a pending clarification from a previous turn, unless this

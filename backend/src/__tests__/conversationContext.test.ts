@@ -248,6 +248,39 @@ test("P: Hindi — ambiguous product clarification and quantity follow-up carry 
   assert.equal(qtyOf(sessionId, basmatiRice.id), 2);
 });
 
+// --- Q: an unrelated command abandons a stale insufficient-stock confirmation ---
+// Regression for a real bug: an insufficient-stock offer sets
+// pendingConfirmation (H/I above). If the customer's NEXT message is neither
+// yes nor no but a completely different command ("checkout"), the offer must
+// be abandoned rather than left pending. Previously it stayed in
+// session.context and, once create_order actually ran later in that same
+// turn's tool loop, MockAIProvider misread create_order's result as the
+// stale confirmation's own check_inventory result -- reporting a nonsensical
+// "only 0 available" instead of the order that had just genuinely been
+// placed. See isConfirmationContinuation in MockAIProvider.ts.
+test("Q: 'checkout' after an unanswered insufficient-stock offer places the real order, not a stale confirmation error", async () => {
+  const sessionId = uniqueSessionId("q");
+
+  // A real purchase actually in the cart.
+  await sendMessage(sessionId, "I need 2 kilos of basmati rice.", "en");
+  assert.equal(qtyOf(sessionId, basmatiRice.id), 2);
+
+  // Triggers an insufficient-stock offer (pendingConfirmation), never
+  // answered yes/no.
+  const tooMany = basmatiRice.stock + 50;
+  const offerStep = await sendMessage(sessionId, `I need ${tooMany} kilos of basmati rice.`, "en");
+  assert.ok(!offerStep.toolCalls.some((t) => t.tool === "add_to_cart"), "an over-stock request must not silently add anything");
+  assert.match(offerStep.reply, new RegExp(String(basmatiRice.stock)), "offer should state the real available stock");
+  assert.equal(qtyOf(sessionId, basmatiRice.id), 2, "cart must be unchanged while the offer is pending");
+
+  // An unrelated command instead of yes/no.
+  const checkoutStep = await sendMessage(sessionId, "checkout", "en");
+  assert.ok(checkoutStep.toolCalls.some((t) => t.tool === "create_order"), "checkout must actually place the order");
+  assert.doesNotMatch(checkoutStep.reply, /\bonly 0\b/i, "must never report the stale confirmation's misread 'only 0 available'");
+  assert.match(checkoutStep.reply, /order/i, "reply should confirm the order, not a stock shortfall");
+  assert.equal(qtyOf(sessionId, basmatiRice.id), 0, "cart is cleared once the real order is placed");
+});
+
 // --- Full target conversation, end-to-end ---
 test("full target conversation: rice -> basmati -> 2kg -> also oil -> sunflower -> 2L -> cart query -> correction to 3kg", async () => {
   const sessionId = uniqueSessionId("full");

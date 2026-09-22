@@ -306,7 +306,7 @@ const PRICE_QUERY_MARKERS = [
 
 const INVENTORY_QUERY_MARKERS = [
   // English
-  "how many", "available", "in stock", "do you have", "is there enough",
+  "how many", "available", "in stock", "do you have", "do i have", "is there enough",
   "stock of", "left in stock", "any stock",
   // Hindi
   "कितने", "उपलब्ध", "स्टॉक",
@@ -315,6 +315,19 @@ const INVENTORY_QUERY_MARKERS = [
   // Telugu
   "ఎన్ని", "నిల్వ", "అందుబాటులో",
 ];
+
+/**
+ * Catches a correction phrased as "change/update/set <product> to <amount>"
+ * with the product named directly (no "the"/"it"/"that" in between) — e.g.
+ * "change rice to 3 kg". CORRECTION_MARKERS above already covers "change
+ * the X to Y" and "change it/that to Y"; this regex covers the bare-noun
+ * form those literal-substring markers miss. Scoped to "change"/"update"/
+ * "set" specifically followed later by "to" — distinctive enough verbs in
+ * this shopping-assistant domain that there's no realistic collision with
+ * an unrelated request (no payment-method or address changes are handled
+ * in conversation).
+ */
+const CHANGE_TO_PATTERN = /\b(change|update|set)\b.*\bto\b/i;
 
 // Cart-content questions ("what's in my cart", "what did I add", "tell me
 // what I added", "what products do I have") — deliberately broader than a
@@ -348,7 +361,7 @@ export type UtteranceIntent = "quantity_correction" | "remove_item" | "price_que
 export function detectUtteranceIntent(rawText: string): UtteranceIntent {
   const lower = rawText.toLowerCase();
   const matches = (markers: string[]) => markers.some((m) => lower.includes(m) || rawText.includes(m));
-  if (matches(CORRECTION_MARKERS)) return "quantity_correction";
+  if (matches(CORRECTION_MARKERS) || CHANGE_TO_PATTERN.test(rawText)) return "quantity_correction";
   if (matches(REMOVE_MARKERS)) return "remove_item";
   if (matches(CART_QUERY_MARKERS)) return "cart_query";
   if (matches(PRICE_QUERY_MARKERS)) return "price_query";

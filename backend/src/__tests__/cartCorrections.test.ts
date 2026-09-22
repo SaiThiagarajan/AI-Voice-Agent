@@ -103,6 +103,24 @@ test("TEST 2b: 'Change the rice to 3 kilos.' -> cart = 3, not an ambiguous-produ
   assert.match(finalText, /\b3\b/);
 });
 
+// TEST 2c — regression: "change <product> to <amount>" with the product
+// named directly (no "the"/"it"/"that") was ALSO not recognized as a
+// correction -- CORRECTION_MARKERS only had "change the X to Y" (added for
+// TEST 2b) and "change it/that to Y", missing the bare-noun form entirely.
+// See CHANGE_TO_PATTERN in queryNormalization.ts.
+test("TEST 2c: 'Change rice to 3 kilos.' (no \"the\") -> cart = 3, not an ambiguous-product clarification", async () => {
+  const customerId = uniqueCustomerId("t2c");
+  await runTurn("I need 2 kilos of basmati rice.", "en", customerId);
+  assert.equal(cartQty(customerId), 2);
+
+  const { toolCalls, finalText } = await runTurn("Change rice to 3 kilos.", "en", customerId);
+
+  assert.equal(cartQty(customerId), 3, "final cart quantity must be exactly 3");
+  assert.ok(!toolCalls.includes("add_to_cart"), "a correction must never call add_to_cart");
+  assert.ok(toolCalls.includes("update_cart_quantity"), "a correction must use update_cart_quantity");
+  assert.match(finalText, /\b3\b/);
+});
+
 // TEST 3
 test("TEST 3: 'Actually make that 5 kilos.' -> cart = 5", async () => {
   const customerId = uniqueCustomerId("t3");

@@ -122,6 +122,22 @@ test("TEST 5: 'How many kilos of basmati rice are available?' checks real invent
   assert.equal(cart.items.length, 0);
 });
 
+// TEST 5b — regression: "Do I HAVE enough" (first person) was not recognized
+// as an inventory question at all -- INVENTORY_QUERY_MARKERS only had "do
+// YOU have", not "do I have" -- so it fell through to the purchase pipeline
+// and was treated as an actual attempt to buy the stated quantity.
+test("TEST 5b: 'Do I have enough basmati for 5000 kg?' is answered as an inventory question, never as a purchase attempt", async () => {
+  const customerId = uniqueCustomerId("t5b");
+  const { toolCalls, finalText } = await runTurn("Do I have enough basmati for 5000 kg?", "en", customerId);
+
+  assert.deepEqual(toolCalls, ["search_products", "check_inventory"]);
+  assert.ok(!toolCalls.includes("add_to_cart"), "an inventory question must never add to the cart");
+  assert.match(finalText, new RegExp(String(basmatiRice.stock)), "response should state the real stock figure");
+
+  const cart = cartService.getCart(customerId);
+  assert.equal(cart.items.length, 0);
+});
+
 // TEST 6 — multilingual price/inventory questions.
 test("TEST 6a (Hindi): price question does not add to cart", async () => {
   const customerId = uniqueCustomerId("t6a");
