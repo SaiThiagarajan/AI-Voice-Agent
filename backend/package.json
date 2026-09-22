@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test src/__tests__/queryNormalization.test.ts src/__tests__/cartService.test.ts src/__tests__/productService.test.ts src/__tests__/mockAIProvider.test.ts src/__tests__/priceAndInventoryQueries.test.ts src/__tests__/openAIProvider.test.ts src/__tests__/cartCorrections.test.ts src/__tests__/conversationContext.test.ts src/__tests__/cartContents.test.ts"
+    "test": "tsx --test src/__tests__/queryNormalization.test.ts src/__tests__/cartService.test.ts src/__tests__/productService.test.ts src/__tests__/mockAIProvider.test.ts src/__tests__/priceAndInventoryQueries.test.ts src/__tests__/openAIProvider.test.ts src/__tests__/cartCorrections.test.ts src/__tests__/conversationContext.test.ts src/__tests__/cartContents.test.ts src/__tests__/cartRoutes.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",

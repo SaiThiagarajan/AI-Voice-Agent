@@ -82,5 +82,6 @@ export function getAllProducts(): Product[] {
 }
 
 export function getProductById(id: string): Product | undefined {
+  if (typeof id !== "string" || !id) return undefined;
   return products.find((p) => p.id.toLowerCase() === id.toLowerCase());
 }

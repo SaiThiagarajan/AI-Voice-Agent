@@ -10,19 +10,27 @@ export async function getCartHandler(req: FastifyRequest, reply: FastifyReply) {
 }
 
 export async function addToCartHandler(
-  req: FastifyRequest<{ Body: { productId: string; qty: number } }>,
+  req: FastifyRequest<{ Body: { productId?: string; qty?: number } }>,
   reply: FastifyReply
 ) {
-  const result = cartService.addToCart(customerIdOf(req), req.body.productId, req.body.qty);
+  const productId = req.body?.productId;
+  if (!productId || typeof productId !== "string") {
+    return reply.status(400).send({ error: "INVALID_REQUEST", message: "productId is required" });
+  }
+  const result = cartService.addToCart(customerIdOf(req), productId, req.body!.qty as number);
   if (!result.ok) return reply.status(400).send({ error: result.error, stock: "stock" in result ? result.stock : undefined });
   return reply.send(result.cart);
 }
 
 export async function removeFromCartHandler(
-  req: FastifyRequest<{ Body: { productId: string; qty?: number } }>,
+  req: FastifyRequest<{ Body: { productId?: string; qty?: number } }>,
   reply: FastifyReply
 ) {
-  const result = cartService.removeFromCart(customerIdOf(req), req.body.productId, req.body.qty);
+  const productId = req.body?.productId;
+  if (!productId || typeof productId !== "string") {
+    return reply.status(400).send({ error: "INVALID_REQUEST", message: "productId is required" });
+  }
+  const result = cartService.removeFromCart(customerIdOf(req), productId, req.body!.qty);
   if (!result.ok) return reply.status(400).send({ error: result.error });
   return reply.send(result.cart);
 }
